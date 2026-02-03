@@ -154,9 +154,39 @@
         .download-link:hover {
             text-decoration: underline;
         }
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #333;
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p>Loading VTracer WASM...</p>
+    </div>
+    
     <div class="container">
         <h1>🖼️ VTracer Demo</h1>
         <p class="subtitle">Foundry Workflow - Raster to Vector Converter</p>
@@ -218,28 +248,40 @@
         </div>
     </div>
     
-    <!-- Load VTracer WASM from CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/vectortracer@1.1.0/dist/vtracer.js"></script>
-    <script>
-        let vtracerReady = false;
+    <script type="module">
+        let VTracer;
         
-        window.initVTracer = async () => {
+        async function loadVTracer() {
             try {
-                // VTracer auto-initializes when script loads
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                vtracerReady = true;
-                console.log('VTracer ready');
-                document.getElementById('traceBtn').disabled = !currentImage;
-                if (typeof VTracer !== 'undefined') {
-                    console.log('VTracer object:', Object.keys(VTracer));
-                }
+                // Try loading from unpkg with ESM
+                const mod = await import('https://unpkg.com/vectortracer@0.1.2/+esm');
+                VTracer = mod;
+                console.log('VTracer loaded from unpkg:', VTracer);
+                document.getElementById('loading-overlay').style.display = 'none';
+                document.getElementById('traceBtn').disabled = !window.currentImage;
             } catch (e) {
-                console.error('VTracer init failed:', e);
+                console.error('Failed to load from unpkg:', e);
+                // Try jsdelivr
+                try {
+                    const mod2 = await import('https://cdn.jsdelivr.net/npm/vectortracer@0.1.2/+esm');
+                    VTracer = mod2;
+                    console.log('VTracer loaded from jsdelivr:', VTracer);
+                    document.getElementById('loading-overlay').style.display = 'none';
+                    document.getElementById('traceBtn').disabled = !window.currentImage;
+                } catch (e2) {
+                    console.error('Failed to load from jsdelivr:', e2);
+                    document.getElementById('loading-overlay').innerHTML = 
+                        '<p style="color: #ef4444;">Failed to load VTracer. Refresh to try again.</p>';
+                }
             }
-        };
+        }
+        
+        loadVTracer();
+        
+        window.vtraceReady = () => VTracer !== undefined;
         
         window.vtraceImage = async (imageData, options) => {
-            if (typeof VTracer === 'undefined' || !VTracer.BinaryImageConverter) {
+            if (!VTracer || !VTracer.BinaryImageConverter) {
                 throw new Error('VTracer not loaded');
             }
             
@@ -267,13 +309,10 @@
                 setTimeout(tick, 10);
             });
         };
-        
-        initVTracer();
     </script>
     
     <script>
         let currentImage = null;
-        let originalImageData = null;
         
         // File upload handling
         document.getElementById('fileInput').addEventListener('change', handleFile);
@@ -287,12 +326,14 @@
                 const img = new Image();
                 img.onload = () => {
                     currentImage = img;
-                    originalImageData = img;
+                    window.currentImage = img;
                     
                     // Show preview
                     document.querySelector('.preview-content').innerHTML = '';
                     document.querySelector('.preview-content').appendChild(img.cloneNode());
-                    document.getElementById('traceBtn').disabled = false;
+                    if (window.vtraceReady()) {
+                        document.getElementById('traceBtn').disabled = false;
+                    }
                     
                     setStatus('Image loaded! Ready to trace.', 'success');
                 };
@@ -304,8 +345,8 @@
         async function traceImage() {
             if (!currentImage) return;
             
-            if (typeof VTracer === 'undefined') {
-                setStatus('Loading VTracer... Wait and try again.', 'loading');
+            if (!window.vtraceReady()) {
+                setStatus('Loading VTracer... Please wait.', 'loading');
                 return;
             }
             
@@ -313,8 +354,6 @@
             document.getElementById('traceBtn').disabled = true;
             
             try {
-                setStatus('Tracing... This may take a moment.', 'loading');
-                
                 // Get settings
                 const colorMode = document.getElementById('colorMode').value;
                 const mode = document.getElementById('traceMode').value;
