@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VTracer Demo - Foundry Workflow</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #fff;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+        }
+        .upload-area {
+            border: 2px dashed #444;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 20px;
+        }
+        .upload-area:hover {
+            border-color: #6366f1;
+            background: rgba(99, 102, 241, 0.1);
+        }
+        .upload-area input {
+            display: none;
+        }
+        .settings {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .settings h3 {
+            margin-bottom: 15px;
+            color: #6366f1;
+        }
+        .setting-row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .setting {
+            flex: 1;
+            min-width: 150px;
+        }
+        .setting label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+            color: #888;
+        }
+        .setting select, .setting input {
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #333;
+            background: #0f0f23;
+            color: #fff;
+        }
+        .preview-area {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .preview {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 15px;
+            min-height: 300px;
+        }
+        .preview h4 {
+            margin-bottom: 10px;
+            color: #6366f1;
+        }
+        .preview-content {
+            background: #fff;
+            border-radius: 6px;
+            min-height: 250px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .preview-content img, .preview-content svg {
+            max-width: 100%;
+            max-height: 250px;
+        }
+        .btn {
+            background: #6366f1;
+            color: #fff;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            transition: all 0.3s;
+        }
+        .btn:hover {
+            background: #4f46e5;
+        }
+        .btn:disabled {
+            background: #444;
+            cursor: not-allowed;
+        }
+        .status {
+            text-align: center;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 6px;
+            display: none;
+        }
+        .status.loading {
+            display: block;
+            background: rgba(99, 102, 241, 0.2);
+            color: #6366f1;
+        }
+        .status.error {
+            display: block;
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        .status.success {
+            display: block;
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+        .download-link {
+            display: block;
+            text-align: center;
+            margin-top: 10px;
+            color: #6366f1;
+            text-decoration: none;
+        }
+        .download-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖼️ VTracer Demo</h1>
+        <p class="subtitle">Foundry Workflow - Raster to Vector Converter</p>
+        
+        <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+            <input type="file" id="fileInput" accept="image/*">
+            <p>📁 Click to upload or drag & drop an image</p>
+            <p style="font-size: 12px; color: #666; margin-top: 10px;">PNG, JPG, BMP supported</p>
+        </div>
+        
+        <div class="settings">
+            <h3>⚙️ VTracer Settings</h3>
+            <div class="setting-row">
+                <div class="setting">
+                    <label>Color Mode</label>
+                    <select id="colorMode">
+                        <option value="bw">Black & White</option>
+                        <option value="color">Color</option>
+                        <option value="gray">Grayscale</option>
+                    </select>
+                </div>
+                <div class="setting">
+                    <label>Mode</label>
+                    <select id="traceMode">
+                        <option value="spline">Spline (smooth curves)</option>
+                        <option value="polygon">Polygon (sharp edges)</option>
+                    </select>
+                </div>
+                <div class="setting">
+                    <label>Filter Speckle</label>
+                    <input type="number" id="filterSpeckle" value="4" min="0" max="20">
+                </div>
+                <div class="setting">
+                    <label>Path Precision</label>
+                    <input type="number" id="pathPrecision" value="2" min="1" max="10">
+                </div>
+            </div>
+        </div>
+        
+        <button class="btn" id="traceBtn" onclick="traceImage()" disabled>
+            🚀 Trace to SVG
+        </button>
+        
+        <div class="status" id="status"></div>
+        
+        <div class="preview-area">
+            <div class="preview">
+                <h4>📷 Original</h4>
+                <div class="preview-content">
+                    <span style="color: #666;">No image selected</span>
+                </div>
+            </div>
+            <div class="preview">
+                <h4>🎨 Vector Result</h4>
+                <div class="preview-content" id="resultContent">
+                    <span style="color: #666;">Trace to see result</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module">
+        import init, { BinaryImageConverter, BinaryImageConverterParams, Options } from 'https://cdn.jsdelivr.net/npm/vectortracer@1.1.0/+esm';
+        
+        window.initVTracer = async () => {
+            await init();
+        };
+        
+        // Auto-initialize on load
+        initVTracer();
+        
+        window.vtraceImage = async (imageData, options) => {
+            const params = new BinaryImageConverterParams({
+                color_mode: options.colorMode || 'bw',
+                mode: options.mode || 'spline',
+                filter_speckle: options.filterSpeckle || 4,
+                path_precision: options.pathPrecision || 2,
+            });
+            
+            const additionalOptions = new Options({
+                debug: false,
+                invert: false,
+            });
+            
+            const converter = new BinaryImageConverter(imageData, params, additionalOptions);
+            
+            return new Promise((resolve) => {
+                const tick = () => {
+                    const done = converter.tick();
+                    if (!done) {
+                        setTimeout(tick, 0);
+                    } else {
+                        const result = converter.getResult();
+                        converter.free();
+                        resolve(result);
+                    }
+                };
+                converter.init();
+                setTimeout(tick, 0);
+            });
+        };
+    </script>
+    
+    <script>
+        let currentImage = null;
+        let originalImageData = null;
+        
+        // File upload handling
+        document.getElementById('fileInput').addEventListener('change', handleFile);
+        
+        async function handleFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    currentImage = img;
+                    originalImageData = img;
+                    
+                    // Show preview
+                    document.querySelector('.preview-content').innerHTML = '';
+                    document.querySelector('.preview-content').appendChild(img.cloneNode());
+                    document.getElementById('traceBtn').disabled = false;
+                    
+                    setStatus('Image loaded! Ready to trace.', 'success');
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        async function traceImage() {
+            if (!currentImage) return;
+            
+            setStatus('Initializing VTracer...', 'loading');
+            document.getElementById('traceBtn').disabled = true;
+            
+            try {
+                // Wait for WASM init
+                if (!window.vtraceImage) {
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+                
+                setStatus('Tracing... This may take a moment.', 'loading');
+                
+                // Get settings
+                const colorMode = document.getElementById('colorMode').value;
+                const mode = document.getElementById('traceMode').value;
+                const filterSpeckle = parseInt(document.getElementById('filterSpeckle').value);
+                const pathPrecision = parseInt(document.getElementById('pathPrecision').value);
+                
+                // Create canvas and get image data
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = currentImage.width;
+                canvas.height = currentImage.height;
+                ctx.drawImage(currentImage, 0, 0);
+                const imageDataObj = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                // Trace
+                const svg = await window.vtraceImage(imageDataObj, {
+                    colorMode,
+                    mode,
+                    filterSpeckle,
+                    pathPrecision
+                });
+                
+                // Show result
+                document.getElementById('resultContent').innerHTML = svg;
+                
+                setStatus('✅ Trace complete!', 'success');
+                
+                // Add download link
+                const blob = new Blob([svg], { type: 'image/svg+xml' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'traced.svg';
+                link.className = 'download-link';
+                link.textContent = '⬇️ Download SVG';
+                document.getElementById('status').appendChild(link);
+                
+            } catch (error) {
+                console.error(error);
+                setStatus('Error: ' + error.message, 'error');
+            }
+            
+            document.getElementById('traceBtn').disabled = false;
+        }
+        
+        function setStatus(msg, type) {
+            const el = document.getElementById('status');
+            el.textContent = msg;
+            el.className = 'status ' + type;
+        }
+    </script>
+</body>
+</html>
