@@ -218,47 +218,45 @@
         </div>
     </div>
     
-    <script type="module">
-        import init, { BinaryImageConverter, BinaryImageConverterParams, Options } from 'https://cdn.jsdelivr.net/npm/vectortracer@1.1.0/+esm';
-        
+    <!-- Load VTracer WASM from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/vectortracer@1.1.0/dist/vtracer.js"></script>
+    <script>
         let vtracerReady = false;
-        let vtracerModule = null;
         
         window.initVTracer = async () => {
             try {
-                await init();
+                // VTracer auto-initializes when script loads
+                await new Promise(resolve => setTimeout(resolve, 2000));
                 vtracerReady = true;
-                console.log('VTracer initialized');
+                console.log('VTracer ready');
                 document.getElementById('traceBtn').disabled = !currentImage;
+                if (typeof VTracer !== 'undefined') {
+                    console.log('VTracer object:', Object.keys(VTracer));
+                }
             } catch (e) {
                 console.error('VTracer init failed:', e);
             }
         };
         
         window.vtraceImage = async (imageData, options) => {
-            if (!vtracerReady) {
-                throw new Error('VTracer not initialized yet');
+            if (typeof VTracer === 'undefined' || !VTracer.BinaryImageConverter) {
+                throw new Error('VTracer not loaded');
             }
             
-            const params = new BinaryImageConverterParams({
+            const params = new VTracer.BinaryImageConverterParams({
                 color_mode: options.colorMode || 'bw',
                 mode: options.mode || 'spline',
                 filter_speckle: options.filterSpeckle || 4,
                 path_precision: options.pathPrecision || 2,
             });
             
-            const additionalOptions = new Options({
-                debug: false,
-                invert: false,
-            });
-            
-            const converter = new BinaryImageConverter(imageData, params, additionalOptions);
+            const converter = new VTracer.BinaryImageConverter(imageData, params);
             
             return new Promise((resolve) => {
                 const tick = () => {
                     const done = converter.tick();
                     if (!done) {
-                        setTimeout(tick, 0);
+                        setTimeout(tick, 10);
                     } else {
                         const result = converter.getResult();
                         converter.free();
@@ -266,11 +264,10 @@
                     }
                 };
                 converter.init();
-                setTimeout(tick, 0);
+                setTimeout(tick, 10);
             });
         };
         
-        // Auto-initialize on load
         initVTracer();
     </script>
     
@@ -307,12 +304,12 @@
         async function traceImage() {
             if (!currentImage) return;
             
-            if (!window.vtraceImage || !window.vtraceImage.toString().includes('color_mode')) {
-                setStatus('Loading VTracer WASM... Please wait a moment and try again.', 'loading');
+            if (typeof VTracer === 'undefined') {
+                setStatus('Loading VTracer... Wait and try again.', 'loading');
                 return;
             }
             
-            setStatus('Tracing... This may take a moment.', 'loading');
+            setStatus('Tracing...', 'loading');
             document.getElementById('traceBtn').disabled = true;
             
             try {
