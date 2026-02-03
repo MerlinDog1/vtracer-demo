@@ -221,14 +221,25 @@
     <script type="module">
         import init, { BinaryImageConverter, BinaryImageConverterParams, Options } from 'https://cdn.jsdelivr.net/npm/vectortracer@1.1.0/+esm';
         
+        let vtracerReady = false;
+        let vtracerModule = null;
+        
         window.initVTracer = async () => {
-            await init();
+            try {
+                await init();
+                vtracerReady = true;
+                console.log('VTracer initialized');
+                document.getElementById('traceBtn').disabled = !currentImage;
+            } catch (e) {
+                console.error('VTracer init failed:', e);
+            }
         };
         
-        // Auto-initialize on load
-        initVTracer();
-        
         window.vtraceImage = async (imageData, options) => {
+            if (!vtracerReady) {
+                throw new Error('VTracer not initialized yet');
+            }
+            
             const params = new BinaryImageConverterParams({
                 color_mode: options.colorMode || 'bw',
                 mode: options.mode || 'spline',
@@ -258,6 +269,9 @@
                 setTimeout(tick, 0);
             });
         };
+        
+        // Auto-initialize on load
+        initVTracer();
     </script>
     
     <script>
@@ -293,15 +307,15 @@
         async function traceImage() {
             if (!currentImage) return;
             
-            setStatus('Initializing VTracer...', 'loading');
+            if (!window.vtraceImage || !window.vtraceImage.toString().includes('color_mode')) {
+                setStatus('Loading VTracer WASM... Please wait a moment and try again.', 'loading');
+                return;
+            }
+            
+            setStatus('Tracing... This may take a moment.', 'loading');
             document.getElementById('traceBtn').disabled = true;
             
             try {
-                // Wait for WASM init
-                if (!window.vtraceImage) {
-                    await new Promise(r => setTimeout(r, 1000));
-                }
-                
                 setStatus('Tracing... This may take a moment.', 'loading');
                 
                 // Get settings
